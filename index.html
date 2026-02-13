@@ -1,0 +1,1106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+  <title>给你的小惊喜</title>
+  <link rel="icon" href="data:,">
+
+  <!-- ✅ 防搜索（尽量） -->
+  <meta name="robots" content="noindex,nofollow,noarchive">
+
+  <!-- 农历库（方案B）：lunar-javascript（6tail） -->
+  <script src="libs/lunar.js"></script>
+
+  <style>
+    :root{
+      --bg0:#0b0f18; --bg1:#0a0d14;
+      --text: rgba(255,255,255,.88);
+      --muted: rgba(255,255,255,.62);
+      --accent: rgba(255,80,120,.95);
+      --shadow: 0 20px 60px rgba(0,0,0,.45);
+      --radius: 22px;
+    }
+    html,body{
+      height:100%; margin:0;
+      background: radial-gradient(1200px 800px at 20% 10%, #141a2a 0%, var(--bg0) 55%, var(--bg1) 100%);
+      color:var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", Arial;
+      overflow:hidden;
+    }
+    .bg-photo{
+      position:fixed; inset:0; z-index:0;
+      background-position:center; background-size:cover; background-repeat:no-repeat;
+      opacity:0; transition: opacity .9s ease;
+      filter: saturate(1.1) contrast(1.05) brightness(.78);
+      transform: scale(1.02);
+    }
+    .bg-dim{
+      position:fixed; inset:0; z-index:1;
+      background: radial-gradient(800px 600px at 50% 0%, rgba(255,255,255,.06) 0%, rgba(0,0,0,.45) 55%, rgba(0,0,0,.55) 100%);
+      pointer-events:none;
+    }
+
+    /* 粒子画布：最上层 + 不挡点击 */
+    canvas{
+      position:fixed; inset:0;
+      z-index: 999;
+      width:100%; height:100%;
+      pointer-events:none;
+      touch-action:none;
+      opacity:1;
+      transition: opacity .25s ease;
+    }
+
+    .wrap{
+      position:fixed; inset:0; z-index:3;
+      display:grid; place-items:center;
+      padding: 18px;
+      pointer-events:none;
+    }
+    .card{
+      width:min(980px, 100%);
+      display:grid;
+      grid-template-columns: 1.35fr .9fr;
+      gap: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.05));
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      overflow:hidden;
+      pointer-events:auto;
+
+      opacity: 0;
+      transform: translateY(10px);
+      animation: cardIn 900ms ease forwards;
+      animation-delay: 120ms;
+    }
+    @keyframes cardIn{ to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 860px){ .card{grid-template-columns: 1fr; } }
+
+    .left{
+      padding: 22px 22px 18px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      min-height: 380px;
+    }
+    .title{
+      font-size: 30px; letter-spacing: .6px; line-height: 1.15; margin: 0;
+      opacity: 0; transform: translateY(6px);
+      animation: textIn 900ms ease forwards; animation-delay: 260ms;
+    }
+    .subtitle{
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height:1.6;
+      opacity: 0; transform: translateY(6px);
+      animation: textIn 900ms ease forwards; animation-delay: 360ms;
+    }
+    @keyframes textIn{ to { opacity: 1; transform: translateY(0); } }
+
+    .pill-row{
+      margin-top: 18px;
+      display:flex; flex-wrap:wrap;
+      gap:10px;
+      opacity: 0; transform: translateY(6px);
+      animation: textIn 900ms ease forwards; animation-delay: 460ms;
+    }
+    .pill{
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.10);
+      color: rgba(255,255,255,.80);
+      font-size: 13px;
+      display:flex; gap:8px; align-items:center;
+    }
+    .dot{
+      width:8px; height:8px; border-radius:99px;
+      background: var(--accent);
+      box-shadow: 0 0 18px rgba(255,80,120,.55);
+    }
+
+    .counter{
+      margin-top: 18px;
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      opacity: 0; transform: translateY(6px);
+      animation: textIn 900ms ease forwards; animation-delay: 560ms;
+    }
+    .kpi{
+      padding: 14px 12px;
+      border-radius: 16px;
+      background: rgba(0,0,0,.22);
+      border: 1px solid rgba(255,255,255,.10);
+    }
+    .kpi .n{ font-size: 26px; font-weight: 700; letter-spacing: .3px; }
+    .kpi .l{ margin-top: 6px; color: rgba(255,255,255,.62); font-size: 12px; }
+
+    .actions{
+      margin-top: 16px;
+      display:flex;
+      gap: 10px;
+      flex-wrap:wrap;
+      opacity: 0; transform: translateY(6px);
+      animation: textIn 900ms ease forwards; animation-delay: 620ms;
+    }
+    .wx-btn{
+      padding: 14px 22px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: linear-gradient(135deg,#ff5f8a,#ff2e63);
+      color: rgba(255,255,255,.96);
+      font-size: 14px;
+      cursor:pointer;
+      box-shadow: 0 10px 30px rgba(255,80,120,.35);
+      transition: transform .18s ease, filter .18s ease;
+      user-select:none;
+    }
+    .wx-btn:active{ transform: scale(.96); filter: brightness(.96); }
+    .ghost-btn{
+      padding: 14px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: rgba(255,255,255,.78);
+      font-size: 14px;
+      cursor:pointer;
+      transition: transform .18s ease, filter .18s ease;
+      user-select:none;
+    }
+    .ghost-btn:active{ transform: scale(.97); filter: brightness(.98); }
+
+    .foot{
+      margin-top: 16px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap: 12px;
+      color: rgba(255,255,255,.52);
+      font-size: 12px;
+      opacity: 0; transform: translateY(6px);
+      animation: textIn 900ms ease forwards; animation-delay: 720ms;
+    }
+    .hint{ display:flex; gap:8px; align-items:center; }
+    .kbd{
+      padding: 4px 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: rgba(255,255,255,.72);
+      font-size: 12px;
+    }
+
+    .right{
+      padding: 18px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: radial-gradient(600px 400px at 50% 20%, rgba(255,80,120,.15), rgba(0,0,0,0) 55%);
+    }
+
+    /* ====== 卡片级照片切换动画（双层 img） ====== */
+    .photo-shell{
+      width:min(320px, 78vw);
+      aspect-ratio: 3/4;
+      border-radius: 18px;
+      overflow:hidden;
+      position:relative;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.04);
+      box-shadow: 0 18px 55px rgba(0,0,0,.45);
+      cursor:grab;
+      user-select:none;
+      touch-action: pan-y; /* 允许竖滑，横滑自己处理 */
+    }
+    .photo-shell:active{ cursor:grabbing; }
+
+    .slide{
+      position:absolute; inset:0;
+      will-change: transform, opacity;
+    }
+    .slide img{
+      width:100%; height:100%;
+      object-fit: cover;
+      display:block;
+      filter: saturate(1.08) contrast(1.05);
+      transform: scale(1.02);
+    }
+    .slide::after{
+      content:"";
+      position:absolute; inset:0;
+      background: linear-gradient(180deg, rgba(0,0,0,.06) 0%, rgba(0,0,0,.22) 70%, rgba(0,0,0,.42) 100%);
+      pointer-events:none;
+    }
+    .slide.current{ transform: translateX(0); opacity:1; }
+    .slide.next{ transform: translateX(105%); opacity:1; }
+
+    .anim-left-out{ transition: transform 320ms ease, opacity 320ms ease; transform: translateX(-105%); opacity:1; }
+    .anim-left-in { transition: transform 320ms ease, opacity 320ms ease; transform: translateX(0); opacity:1; }
+    .anim-right-out{ transition: transform 320ms ease, opacity 320ms ease; transform: translateX(105%); opacity:1; }
+    .anim-right-in { transition: transform 320ms ease, opacity 320ms ease; transform: translateX(0); opacity:1; }
+    .dragging{ transition:none !important; }
+
+    .badge{
+      position:absolute; left:12px; top:12px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.28);
+      border: 1px solid rgba(255,255,255,.14);
+      color: rgba(255,255,255,.86);
+      font-size: 12px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      display:flex; align-items:center; gap:8px;
+      z-index:5;
+    }
+    .badge .heart{
+      width:10px; height:10px; border-radius:99px;
+      background: var(--accent);
+      box-shadow: 0 0 18px rgba(255,80,120,.55);
+    }
+    .tap{
+      position:absolute; right:12px; bottom:12px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(0,0,0,.28);
+      border: 1px solid rgba(255,255,255,.14);
+      color: rgba(255,255,255,.76);
+      font-size: 12px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      z-index:5;
+    }
+
+    /* 兜底弹层 */
+    .modal-mask{
+      position:fixed; inset:0; z-index:10000;
+      background: rgba(0,0,0,.62);
+      display:flex; align-items:center; justify-content:center;
+      padding: 18px;
+    }
+    .modal{
+      width:min(380px, 100%);
+      border-radius: 18px;
+      background: rgba(20,20,30,.94);
+      border: 1px solid rgba(255,255,255,.14);
+      box-shadow: 0 20px 70px rgba(0,0,0,.65);
+      padding: 22px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    .modal h3{ margin: 0 0 10px 0; font-size: 16px; letter-spacing:.2px; }
+    .modal p{ margin: 0 0 14px 0; font-size: 13px; color: rgba(255,255,255,.66); line-height: 1.6; }
+    .modal .row{ display:flex; flex-direction:column; gap:10px; margin-top: 10px; }
+    .modal .mbtn{
+      width:100%;
+      padding: 12px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.14);
+      cursor:pointer;
+      font-size: 14px;
+      color: rgba(255,255,255,.92);
+      background: rgba(255,255,255,.06);
+      transition: transform .16s ease, filter .16s ease;
+      user-select:none;
+    }
+    .modal .mbtn.primary{
+      border: none;
+      background: linear-gradient(135deg,#ff5f8a,#ff2e63);
+      box-shadow: 0 10px 30px rgba(255,80,120,.28);
+    }
+    .modal .mbtn:active{ transform: scale(.98); filter: brightness(.98); }
+    .modal .close{
+      margin-top: 12px;
+      text-align:center;
+      color: rgba(255,255,255,.55);
+      font-size: 12px;
+      cursor:pointer;
+      user-select:none;
+    }
+
+    .toast{
+      position:fixed;
+      left:50%; bottom:24px;
+      transform: translateX(-50%);
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.55);
+      border: 1px solid rgba(255,255,255,.14);
+      color: rgba(255,255,255,.82);
+      font-size: 12px;
+      z-index: 10001;
+      opacity:0;
+      pointer-events:none;
+      transition: opacity .25s ease;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .toast.show{ opacity:1; }
+  </style>
+</head>
+
+<body>
+  <div class="bg-photo" id="bgPhoto"></div>
+  <div class="bg-dim"></div>
+  <canvas id="fx"></canvas>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="left">
+        <div>
+          <h1 class="title" id="titleText">我想你了</h1>
+          <p class="subtitle" id="subText">有些话不需要很大声——贴一下，就能听见。</p>
+
+          <div class="pill-row">
+            <div class="pill"><span class="dot"></span><span id="specialTag">今天也想你</span></div>
+            <div class="pill">左右滑动切换照片</div>
+            <div class="pill">拖动屏幕：拨动爱心粒子</div>
+          </div>
+
+          <div class="counter">
+            <div class="kpi">
+              <div class="n" id="days">0</div>
+              <div class="l">认识的天数</div>
+            </div>
+            <div class="kpi">
+              <div class="n" id="since">—</div>
+              <div class="l">开始那天</div>
+            </div>
+            <div class="kpi">
+              <div class="n" id="today">—</div>
+              <div class="l">今天</div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="wx-btn" id="openWxBtn">去找你</button>
+            <button class="ghost-btn" id="copyBtn" title="复制微信号">复制微信号</button>
+            <button class="ghost-btn" id="fxToggleBtn" title="开关爱心粒子">粒子：开</button>
+          </div>
+        </div>
+
+        <div class="foot">
+          <div class="hint">
+            <span class="kbd">Tips</span>
+            <span>想我了吗，宝宝</span>
+          </div>
+          <div style="opacity:.85">♡</div>
+        </div>
+      </div>
+
+      <div class="right">
+        <div class="photo-shell" id="photoShell" title="左右滑动/点一下切换">
+          <div class="badge"><span class="heart"></span><span id="photoIdx">Photo 1 / 6</span></div>
+
+          <div class="slide current" id="slideA"><img id="imgA" alt="photoA"></div>
+          <div class="slide next" id="slideB"><img id="imgB" alt="photoB"></div>
+
+          <div class="tap">Swipe / Tap</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">已复制</div>
+
+<script>
+/** =========================================================
+ *  配置区（你改这里）
+ *  ========================================================= */
+const START_DATE = "2023-03-18";
+const WECHAT_USERNAME = "position102";
+
+const PHOTOS = [
+  "assert/1.png",
+  "assert/2.png",
+  "assert/3.png",
+  "assert/4.png",
+  "assert/5.png",
+  "assert/6.png",
+];
+
+// 自动轮播间隔
+const SLIDE_INTERVAL_MS = 4500;
+// 滑动阈值
+const SWIPE_THRESHOLD = 42;
+
+// 公历特殊日（可多个） md: "MM-DD"
+const SOLAR_SPECIALS = [
+  { md:"02-14", name:"情人节", quote:"愿有岁月可回首，且以深情共白头。", bgPhotoIndex:1, bgOpacity:0.50, particleMultiplier:2.2 },
+  { md:"08-18", name:"生日快乐", quote:"愿你眼里有光，心中有爱，所愿皆成真。", bgPhotoIndex:2, bgOpacity:0.52, particleMultiplier:2.3 },
+];
+
+// 农历特殊日（可多个） lmd: "M-D"
+const LUNAR_SPECIALS = [
+  { lmd:"4-7", name:"农历四月初七", quote:"愿你岁岁常欢愉，万事皆胜意。", bgPhotoIndex:3, bgOpacity:0.50, particleMultiplier:2.2 },
+  { lmd:"7-7", name:"七夕", quote:"金风玉露一相逢，便胜却人间无数。", bgPhotoIndex:4, bgOpacity:0.55, particleMultiplier:2.6 },
+  { lmd:"1-1", name:"春节", quote:"新岁启封，愿你平安喜乐，万事顺遂。", bgPhotoIndex:0, bgOpacity:0.55, particleMultiplier:2.6 },
+  { lmd:"5-5", name:"端午", quote:"愿你所至皆坦途，所求皆如愿。", bgPhotoIndex:5, bgOpacity:0.48, particleMultiplier:2.1 },
+  { lmd:"8-15", name:"中秋", quote:"但愿人长久，千里共婵娟。", bgPhotoIndex:2, bgOpacity:0.55, particleMultiplier:2.5 },
+];
+
+const ENABLE_ANNIVERSARY = true;      // 公历周年（更强）
+const ENABLE_EVERY_100_DAYS = true;   // 每100天触发
+
+
+/** =========================================================
+ *  工具
+ *  ========================================================= */
+const $ = (id) => document.getElementById(id);
+function pad2(n){ return String(n).padStart(2,"0"); }
+function fmtYMD(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+function fmtMD(d){ return `${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+function localMidnight(date){ return new Date(date.getFullYear(), date.getMonth(), date.getDate()); }
+function diffDays(startYMD, now){
+  const s = new Date(startYMD + "T00:00:00");
+  const a = localMidnight(s).getTime();
+  const b = localMidnight(now).getTime();
+  return Math.max(0, Math.floor((b-a)/86400000));
+}
+function parseStart(){
+  const s = new Date(START_DATE + "T00:00:00");
+  return { md: `${pad2(s.getMonth()+1)}-${pad2(s.getDate())}` };
+}
+
+// 农历：获取农历月日（依赖 Lunar）
+function getLunarMD(date){
+  try{
+    if (typeof Lunar === "undefined") return null;
+    const l = Lunar.fromDate(date);
+    return { m: l.getMonth(), d: l.getDay() };
+  }catch(e){ return null; }
+}
+
+/** =========================================================
+ *  特殊日判定（优先级：周年 > 农历 > 公历 > 百日）
+ *  ========================================================= */
+let currentModeKey = "";
+function setParticleMultiplier(m){ /* 粒子模块覆盖 */ }
+function fxPulse(){ /* 粒子模块覆盖 */ }
+
+function matchSolarSpecial(md){ return SOLAR_SPECIALS.find(x => x.md === md) || null; }
+function matchLunarSpecial(lmd){ return LUNAR_SPECIALS.find(x => x.lmd === lmd) || null; }
+
+function computeSpecial(today, days){
+  const mdSolar = fmtMD(today);
+  const start = parseStart();
+
+  if (ENABLE_ANNIVERSARY && days>0 && mdSolar === start.md){
+    return { kind:"anniversary", tag:"周年模式 · 更强", title:"周年快乐",
+      quote:"这一年又一年，我还是会一直想你。", bgPhotoIndex:0, bgOpacity:0.58, particleMultiplier:2.8 };
+  }
+
+  const lunar = getLunarMD(today);
+  if (lunar){
+    const lmd = `${lunar.m}-${lunar.d}`;
+    const hitL = matchLunarSpecial(lmd);
+    if (hitL){
+      return { kind:"lunar", tag:`今天是个特殊的日子 · ${hitL.name}`, title:hitL.name, quote:hitL.quote,
+        bgPhotoIndex: hitL.bgPhotoIndex ?? 0, bgOpacity: hitL.bgOpacity ?? 0.52, particleMultiplier: hitL.particleMultiplier ?? 2.2 };
+    }
+  }
+
+  const hitS = matchSolarSpecial(mdSolar);
+  if (hitS){
+    return { kind:"solar", tag:`还记得今天吗 · ${hitS.name}`, title:hitS.name, quote:hitS.quote,
+      bgPhotoIndex: hitS.bgPhotoIndex ?? 0, bgOpacity: hitS.bgOpacity ?? 0.48, particleMultiplier: hitS.particleMultiplier ?? 2.0 };
+  }
+
+  if (ENABLE_EVERY_100_DAYS && days>0 && days % 100 === 0){
+    const idx = Math.floor(days/100) % PHOTOS.length;
+    return { kind:"hundred", tag:"百日节点 · 更强", title:`第 ${days} 天`,
+      quote:"整整一百天的想念，像一颗颗心落在你身边。", bgPhotoIndex: idx, bgOpacity:0.45, particleMultiplier:2.0 };
+  }
+  return null;
+}
+
+function applyUI(){
+  const now = new Date();
+  const days = diffDays(START_DATE, now);
+
+  $("days").textContent = String(days);
+  $("since").textContent = START_DATE;
+  $("today").textContent = fmtYMD(now);
+
+  const hit = computeSpecial(now, days);
+  const bg = $("bgPhoto");
+  const modeKey = hit ? `${hit.kind}-${hit.title}-${hit.bgPhotoIndex}` : "normal";
+  if (modeKey === currentModeKey) return;
+  currentModeKey = modeKey;
+
+  if (hit){
+    const idx = Math.max(0, Math.min(PHOTOS.length-1, hit.bgPhotoIndex|0));
+    bg.style.backgroundImage = `url("${PHOTOS[idx]}")`;
+    bg.style.opacity = String(hit.bgOpacity ?? 0.50);
+
+    $("specialTag").textContent = hit.tag ?? "还记得今天吗？";
+    $("titleText").textContent = hit.title ?? "我想你了。";
+    $("subText").textContent = hit.quote ?? "愿你今天也开心。";
+
+    setParticleMultiplier(hit.particleMultiplier ?? 2.0);
+    fxPulse(1.6);
+  }else{
+    bg.style.opacity = "0";
+    $("specialTag").textContent = "今天也想你";
+    $("titleText").textContent = "我想你了";
+    $("subText").textContent = "有些话不需要很大声——贴一下，就能听见。";
+    setParticleMultiplier(1.0);
+  }
+}
+applyUI();
+setInterval(applyUI, 30000);
+
+
+/** =========================================================
+ *  ✅ 照片：修复“第一次能动，后面卡死”的版本
+ *  关键修复：
+ *  - transitionend 可能不触发 → 加超时 fallback
+ *  - 强制 reflow 触发动画
+ *  - 拖拽时禁止 click 触发（避免冲突）
+ *  ========================================================= */
+let photoIndex = 0;
+const photoShell = $("photoShell");
+const slideA = $("slideA");
+const slideB = $("slideB");
+const imgA = $("imgA");
+const imgB = $("imgB");
+const idxEl = $("photoIdx");
+
+let activeSlide = "A";
+let animating = false;
+
+function setIdxLabel(){ idxEl.textContent = `Photo ${photoIndex+1} / ${PHOTOS.length}`; }
+
+function initSlides(){
+  imgA.src = PHOTOS[0];
+  photoIndex = 0;
+  setIdxLabel();
+  imgB.src = PHOTOS[(photoIndex+1)%PHOTOS.length];
+  slideA.className = "slide current";
+  slideB.className = "slide next";
+  slideA.style.transform = ""; slideB.style.transform = "";
+  slideA.style.opacity = ""; slideB.style.opacity = "";
+}
+initSlides();
+
+function resetSlidePositions(dir){
+  const cur = (activeSlide==="A") ? slideA : slideB;
+  const nxt = (activeSlide==="A") ? slideB : slideA;
+
+  cur.className = "slide current";
+  nxt.className = "slide next";
+
+  if (dir === "left") nxt.style.transform = "translateX(105%)";
+  else nxt.style.transform = "translateX(-105%)";
+
+  nxt.style.opacity = "1";
+  cur.style.transform = "translateX(0)";
+  cur.style.opacity = "1";
+}
+
+function clearDragging(){
+  slideA.classList.remove("dragging");
+  slideB.classList.remove("dragging");
+}
+
+function setNextImageFor(dir){
+  const nxtImg = (activeSlide==="A") ? imgB : imgA;
+  let targetIndex = photoIndex;
+  if (dir === "left") targetIndex = (photoIndex + 1) % PHOTOS.length;
+  else targetIndex = (photoIndex - 1 + PHOTOS.length) % PHOTOS.length;
+  nxtImg.src = PHOTOS[targetIndex];
+}
+
+function commitIndex(dir){
+  if (dir === "left") photoIndex = (photoIndex + 1) % PHOTOS.length;
+  else photoIndex = (photoIndex - 1 + PHOTOS.length) % PHOTOS.length;
+  setIdxLabel();
+}
+
+function finalizeAfterSwap(){
+  activeSlide = (activeSlide==="A") ? "B" : "A";
+  const preloadIdx = (photoIndex + 1) % PHOTOS.length;
+  const preloadImg = (activeSlide==="A") ? imgB : imgA;
+  preloadImg.src = PHOTOS[preloadIdx];
+
+  slideA.style.transform = ""; slideB.style.transform = "";
+  slideA.style.opacity = ""; slideB.style.opacity = "";
+  clearDragging();
+  animating = false;
+}
+
+function animateTo(dir){
+  if (animating) return;
+  animating = true;
+
+  const cur = (activeSlide==="A") ? slideA : slideB;
+  const nxt = (activeSlide==="A") ? slideB : slideA;
+
+  clearDragging();
+
+  // ✅ 强制 reflow，确保 transition 必触发
+  void cur.offsetWidth;
+
+  if (dir === "left"){
+    cur.className = "slide current anim-left-out";
+    nxt.className = "slide next anim-left-in";
+    nxt.style.transform = "translateX(0)";
+  } else {
+    cur.className = "slide current anim-right-out";
+    nxt.className = "slide next anim-right-in";
+    nxt.style.transform = "translateX(0)";
+  }
+
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    commitIndex(dir);
+    finalizeAfterSwap();
+  };
+
+  // ✅ transitionend 兜底：有时不触发就靠 timeout 收尾
+  const onEnd = (e) => {
+    // 只响应 transform/opacity 的结束
+    if (e && e.propertyName && !["transform","opacity"].includes(e.propertyName)) return;
+    cur.removeEventListener("transitionend", onEnd);
+    finish();
+  };
+  cur.addEventListener("transitionend", onEnd);
+
+  // fallback：比 320ms 略长一点
+  setTimeout(() => {
+    cur.removeEventListener("transitionend", onEnd);
+    finish();
+  }, 420);
+}
+
+function snapBack(dir){
+  const cur = (activeSlide==="A") ? slideA : slideB;
+  const nxt = (activeSlide==="A") ? slideB : slideA;
+
+  clearDragging();
+
+  cur.style.transition = "transform 220ms ease, opacity 220ms ease";
+  nxt.style.transition = "transform 220ms ease, opacity 220ms ease";
+
+  cur.style.transform = "translateX(0)";
+  cur.style.opacity = "1";
+
+  const w = photoShell.clientWidth || 1;
+  nxt.style.transform = (dir==="left") ? `translateX(${w}px)` : `translateX(${-w}px)`;
+
+  setTimeout(()=>{
+    cur.style.transition = "";
+    nxt.style.transition = "";
+    cur.style.transform = "";
+    nxt.style.transform = "";
+    cur.style.opacity = "";
+    nxt.style.opacity = "";
+  }, 240);
+}
+
+function go(dir){
+  if (animating) return;
+  setNextImageFor(dir);
+  resetSlidePositions(dir);
+  animateTo(dir);
+  fxPulse(1.05);
+  resetAutoSlide();
+}
+
+// 自动轮播
+let slideTimer = null;
+function startAutoSlide(){
+  stopAutoSlide();
+  slideTimer = setInterval(()=>go("left"), SLIDE_INTERVAL_MS);
+}
+function stopAutoSlide(){
+  if (slideTimer){ clearInterval(slideTimer); slideTimer = null; }
+}
+function resetAutoSlide(){ startAutoSlide(); }
+startAutoSlide();
+
+document.querySelector(".card").addEventListener("mouseenter", stopAutoSlide);
+document.querySelector(".card").addEventListener("mouseleave", startAutoSlide);
+
+// 手势滑动（并解决 click 冲突）
+let touchActive = false;
+let startX = 0, startY = 0;
+let lastDx = 0;
+let dragDir = "left";
+let moved = false;
+
+function applyDragTransform(dx){
+  const cur = (activeSlide==="A") ? slideA : slideB;
+  const nxt = (activeSlide==="A") ? slideB : slideA;
+
+  cur.classList.add("dragging");
+  nxt.classList.add("dragging");
+
+  const w = photoShell.clientWidth || 1;
+  cur.style.transform = `translateX(${dx}px)`;
+
+  if (dx < 0) nxt.style.transform = `translateX(${w + dx}px)`;
+  else nxt.style.transform = `translateX(${-w + dx}px)`;
+
+  const p = dx / w;
+  const fade = Math.min(0.25, Math.abs(p)*0.25);
+  cur.style.opacity = String(1 - fade);
+  nxt.style.opacity = "1";
+}
+
+photoShell.addEventListener("pointerdown", (e)=>{
+  if (animating) return;
+  touchActive = true;
+  moved = false;
+  startX = e.clientX; startY = e.clientY;
+  lastDx = 0;
+  dragDir = "left";
+  photoShell.setPointerCapture?.(e.pointerId);
+
+  setNextImageFor("left");
+  resetSlidePositions("left");
+}, {passive:true});
+
+photoShell.addEventListener("pointermove", (e)=>{
+  if (!touchActive || animating) return;
+  const dx = e.clientX - startX;
+  const dy = e.clientY - startY;
+
+  if (Math.abs(dy) > Math.abs(dx) * 1.2) return;
+
+  if (Math.abs(dx) > 6) moved = true; // ✅ 标记为“拖拽”，后续不触发 click
+  lastDx = dx;
+
+  const newDir = dx < 0 ? "left" : "right";
+  if (newDir !== dragDir){
+    dragDir = newDir;
+    setNextImageFor(dragDir);
+    resetSlidePositions(dragDir);
+  }
+  applyDragTransform(dx);
+}, {passive:true});
+
+photoShell.addEventListener("pointerup", ()=>{
+  if (!touchActive || animating) return;
+  touchActive = false;
+
+  const dx = lastDx;
+  if (Math.abs(dx) > SWIPE_THRESHOLD) go(dx < 0 ? "left" : "right");
+  else snapBack(dx < 0 ? "left" : "right");
+}, {passive:true});
+
+photoShell.addEventListener("pointercancel", ()=>{
+  if (!touchActive || animating) return;
+  touchActive = false;
+  snapBack(lastDx < 0 ? "left" : "right");
+}, {passive:true});
+
+// ✅ 点击：只有“没拖拽”的情况下才触发下一张
+photoShell.addEventListener("click", ()=>{
+  if (animating) return;
+  if (moved) return;     // 解决“拖拽松手后 click 又触发”的冲突
+  go("left");
+});
+
+
+/** =========================================================
+ *  微信：复制→尝试打开微信→兜底
+ *  ========================================================= */
+function showToast(msg){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 1200);
+}
+
+async function copyText(text){
+  try{
+    if (navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(text);
+      showToast("已复制微信号");
+      return true;
+    }
+  }catch(e){}
+  try{
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position="fixed";
+    ta.style.left="-9999px";
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    showToast(ok ? "已复制微信号" : "复制失败");
+    return ok;
+  }catch(e){
+    showToast("复制失败");
+    return false;
+  }
+}
+
+$("copyBtn").addEventListener("click", async ()=>{
+  await copyText(WECHAT_USERNAME);
+  fxPulse(0.9);
+});
+
+$("openWxBtn").addEventListener("click", async ()=>{
+  await copyText(WECHAT_USERNAME);
+
+  const start = Date.now();
+  let hidden = false;
+  const onVis = () => { if (document.hidden) hidden = true; };
+  document.addEventListener("visibilitychange", onVis, { once:true });
+
+  window.location.href = "weixin://";
+
+  setTimeout(()=>{
+    if (!hidden && Date.now() - start < 2400){
+      showWxFallback(WECHAT_USERNAME);
+    }
+  }, 900);
+
+  fxPulse(1.2);
+});
+
+function showWxFallback(username){
+  if (document.getElementById("wxFallbackMask")) return;
+
+  const mask = document.createElement("div");
+  mask.id = "wxFallbackMask";
+  mask.className = "modal-mask";
+  mask.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3>已为你准备好</h3>
+      <p>我已经把微信号复制到剪贴板啦。若没能自动打开微信，请手动打开微信→搜索→粘贴即可。</p>
+      <div class="row">
+        <button class="mbtn primary" id="mCopy">再复制一次</button>
+        <button class="mbtn" id="mOpenWx">打开微信</button>
+      </div>
+      <div class="close" id="mClose">关闭</div>
+    </div>
+  `;
+  mask.addEventListener("click", (e)=>{ if (e.target === mask) closeWxFallback(); });
+  document.body.appendChild(mask);
+
+  document.getElementById("mCopy").addEventListener("click", async ()=>{ await copyText(username); });
+  document.getElementById("mOpenWx").addEventListener("click", ()=>{ window.location.href = "weixin://"; });
+  document.getElementById("mClose").addEventListener("click", closeWxFallback);
+}
+function closeWxFallback(){
+  const m = document.getElementById("wxFallbackMask");
+  if (m) m.remove();
+}
+
+
+/** =========================================================
+ *  爱心粒子：最上层 + 可开关（交互绑 window）
+ *  ========================================================= */
+const canvas = $("fx");
+const ctx = canvas.getContext("2d", { alpha:true });
+
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = Math.max(1, Math.floor(window.innerWidth));
+  H = Math.max(1, Math.floor(window.innerHeight));
+  canvas.width = Math.floor(W*DPR);
+  canvas.height= Math.floor(H*DPR);
+  canvas.style.width = W+"px";
+  canvas.style.height= H+"px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener("resize", resize, {passive:true});
+resize();
+ctx.globalCompositeOperation = "lighter";
+
+let fxEnabled = true;
+function setFxEnabled(on){
+  fxEnabled = !!on;
+  $("fxToggleBtn").textContent = fxEnabled ? "粒子：开" : "粒子：关";
+  canvas.style.opacity = fxEnabled ? "1" : "0";
+}
+$("fxToggleBtn").addEventListener("click", ()=> setFxEnabled(!fxEnabled));
+setFxEnabled(true);
+
+function heartPoint(t){
+  const x = 16 * Math.pow(Math.sin(t), 3);
+  const y = 13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t);
+  return {x,y};
+}
+function rand(a,b){ return a + Math.random()*(b-a); }
+
+const particles = [];
+let baseN = 220;
+let particleMultiplier_ = 1.0;
+let targetN = baseN;
+const center = () => ({ x: W*0.5, y: H*0.52 });
+
+function spawnOne(){
+  const c = center();
+  const scale = Math.min(W,H)*0.020;
+  const t = rand(0, Math.PI*2);
+  const p = heartPoint(t);
+  const jitter = rand(0.88, 1.12);
+  const x = c.x + p.x*scale*jitter + rand(-14,14);
+  const y = c.y - p.y*scale*jitter + rand(-14,14);
+  const r = rand(2.4, 4.6);
+  return { x,y, vx:rand(-0.55,0.55), vy:rand(-0.55,0.55), r, m:r*r, a:rand(0.55,1.0), baseT:t, phase:rand(0,Math.PI*2) };
+}
+function ensureParticleCount(){
+  targetN = Math.round(baseN * particleMultiplier_);
+  targetN = Math.max(150, Math.min(520, targetN));
+  while(particles.length < targetN) particles.push(spawnOne());
+  while(particles.length > targetN) particles.pop();
+}
+setParticleMultiplier = function(m){
+  particleMultiplier_ = Math.max(1.0, Math.min(2.8, m));
+  ensureParticleCount();
+};
+ensureParticleCount();
+
+const pointer = { x:W/2, y:H/2, down:false };
+function onMove(x,y){ pointer.x=x; pointer.y=y; }
+window.addEventListener("pointerdown",(e)=>{ pointer.down=true; onMove(e.clientX,e.clientY); }, {passive:true});
+window.addEventListener("pointermove",(e)=>{ onMove(e.clientX,e.clientY); }, {passive:true});
+window.addEventListener("pointerup",()=>{ pointer.down=false; }, {passive:true});
+window.addEventListener("pointercancel",()=>{ pointer.down=false; }, {passive:true});
+
+let pulse=0;
+fxPulse = function(power=1.0){ pulse = Math.min(2.0, pulse + power); };
+
+function resolveCollisions(){
+  for(let i=0;i<particles.length;i++){
+    for(let j=i+1;j<particles.length;j++){
+      const a=particles[i], b=particles[j];
+      const dx=b.x-a.x, dy=b.y-a.y;
+      const dist2=dx*dx+dy*dy;
+      const minD=a.r+b.r+0.35;
+      if(dist2 < minD*minD){
+        const dist=Math.sqrt(dist2)||0.0001;
+        const nx=dx/dist, ny=dy/dist;
+        const overlap=minD-dist;
+        const total=a.m+b.m;
+        a.x -= nx*overlap*(b.m/total); a.y -= ny*overlap*(b.m/total);
+        b.x += nx*overlap*(a.m/total); b.y += ny*overlap*(a.m/total);
+
+        const rvx=b.vx-a.vx, rvy=b.vy-a.vy;
+        const vel=rvx*nx + rvy*ny;
+        if(vel>0) continue;
+        const e=0.92;
+        const jImp = -(1+e)*vel/(1/a.m+1/b.m);
+        const ix=jImp*nx, iy=jImp*ny;
+        a.vx -= ix/a.m; a.vy -= iy/a.m;
+        b.vx += ix/b.m; b.vy += iy/b.m;
+      }
+    }
+  }
+}
+function heartAttractor(p,time){
+  const c=center();
+  const scale=Math.min(W,H)*0.020;
+  const breathe=1 + 0.05*Math.sin(time*0.002+p.phase) + 0.08*pulse;
+  const t=p.baseT + 0.25*Math.sin(time*0.0013+p.phase);
+  const hp=heartPoint(t);
+  const tx=c.x + hp.x*scale*breathe;
+  const ty=c.y - hp.y*scale*breathe;
+  const dx=tx-p.x, dy=ty-p.y;
+  const dist=Math.sqrt(dx*dx+dy*dy)+0.001;
+  const k=0.016;
+  p.vx += (dx/dist)*k*dist;
+  p.vy += (dy/dist)*k*dist;
+}
+function pointerForce(p){
+  const dx=p.x-pointer.x, dy=p.y-pointer.y;
+  const d2=dx*dx+dy*dy;
+  const R=150;
+  if(d2 < R*R){
+    const d=Math.sqrt(d2)+0.001;
+    const nx=dx/d, ny=dy/d;
+    const strength=pointer.down?2.0:0.9;
+    const f=(1-d/R)*strength;
+    p.vx += nx*f*1.4; p.vy += ny*f*1.4;
+    p.vx += (-ny)*f*0.85; p.vy += (nx)*f*0.85;
+  }
+}
+function bounds(p){
+  const pad=6;
+  if(p.x<pad){p.x=pad; p.vx*=-0.85;}
+  if(p.x>W-pad){p.x=W-pad; p.vx*=-0.85;}
+  if(p.y<pad){p.y=pad; p.vy*=-0.85;}
+  if(p.y>H-pad){p.y=H-pad; p.vy*=-0.85;}
+}
+function draw(time){
+  if (!fxEnabled){
+    requestAnimationFrame(draw);
+    return;
+  }
+  ctx.clearRect(0,0,W,H);
+  pulse*=0.93; if(pulse<0.001) pulse=0;
+
+  ensureParticleCount();
+  for(const p of particles){
+    heartAttractor(p,time);
+    pointerForce(p);
+    p.vx*=0.965; p.vy*=0.965;
+    p.x+=p.vx; p.y+=p.vy;
+    bounds(p);
+  }
+  resolveCollisions();
+
+  const maxD=120;
+  for(let i=0;i<particles.length;i++){
+    const a=particles[i];
+    for(let j=i+1;j<particles.length;j++){
+      const b=particles[j];
+      const dx=b.x-a.x, dy=b.y-a.y;
+      const d2=dx*dx+dy*dy;
+      if(d2<maxD*maxD){
+        const d=Math.sqrt(d2);
+        const alpha=(1-d/maxD)*(0.22+0.08*pulse);
+        ctx.beginPath();
+        ctx.moveTo(a.x,a.y);
+        ctx.lineTo(b.x,b.y);
+        ctx.strokeStyle=`rgba(255,80,120,${alpha})`;
+        ctx.lineWidth=1;
+        ctx.stroke();
+      }
+    }
+  }
+
+  for(const p of particles){
+    const alpha=p.a*(0.85+0.15*Math.sin(time*0.003+p.phase)) + 0.10*pulse;
+
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r*3.2 + pulse*2.2,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,80,120,${0.10+alpha*0.10})`;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,160,190,${0.75+alpha*0.20})`;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(p.x-p.r*0.25,p.y-p.r*0.25,Math.max(0.7,p.r*0.35),0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,255,255,${0.45+alpha*0.15})`;
+    ctx.fill();
+  }
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+window.addEventListener("load", ()=>{
+  setTimeout(()=>fxPulse(1.6), 220);
+  // 预加载
+  for(const u of PHOTOS){ const im = new Image(); im.src = u; }
+});
+</script>
+</body>
+</html>
